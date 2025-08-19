@@ -1,0 +1,70 @@
+[package]
+edition = "2021"
+name = "rm690b0-rs"
+rust-version = "1.86"
+version = "0.1.0"
+description = "A Rust driver for the RM690B0 display controller"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/theembeddedrustacean/sh8601-rs"
+keywords = ["embedded", "display", "rm690b0", "esp32", "no_std"]
+categories = ["embedded"]
+readme = "README.md"
+homepage = "https://blog.theembeddedrustacean.com/"
+exclude = ["target/debug/*", "assets/*"]
+
+[lib]
+name = "rm690b0_rs"
+path = "./src/lib.rs"
+
+[dependencies]
+embedded-hal = "1.0.0"
+embedded-graphics = "0.8.1"
+embedded-graphics-core = "0.4.0"
+document-features = "0.2.11"
+# Optional dependencies for the Lilygo T4-S3 display
+critical-section = { version = "1.2.0", optional = true }
+esp-alloc = { version = "0.8.0", optional = true }
+esp-backtrace = { version = "0.17.0", optional = true, features = [
+  "esp32s3",
+  "exception-handler",
+  "panic-handler",
+  "println",
+] }
+esp-hal = { version = "=1.0.0-rc.0", optional = true, features = [
+  "esp32s3",
+  "psram",
+  "unstable",
+] }
+esp-println = { version = "0.15.0", optional = true, features = [
+  "esp32s3",
+], default-features = false }
+esp-bootloader-esp-idf = { version = "0.2.0", optional = true, features = [
+  "esp32s3",
+] }
+
+[features]
+## Enable support for the Lilygo T4-S3 display
+lilygo_t4_s3 = [
+  "dep:esp-alloc",
+  "dep:esp-backtrace",
+  "dep:esp-hal",
+  "dep:esp-println",
+  "dep:critical-section",
+  "dep:esp-bootloader-esp-idf",
+  "esp-println/auto",
+]
+
+
+[profile.dev]
+# Rust debug is too slow.
+# For debug builds always builds with some optimization
+opt-level = "s"
+
+[profile.release]
+codegen-units = 1        # LLVM can perform better optimizations using a single thread
+debug = 2
+debug-assertions = false
+incremental = false
+lto = 'fat'
+opt-level = 's'
+overflow-checks = false
