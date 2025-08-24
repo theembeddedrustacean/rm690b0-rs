@@ -1,12 +1,14 @@
 use crate::{ControllerInterface, DrawTarget, ResetInterface, Rm690b0Driver};
-use embedded_graphics_core::{pixelcolor::Rgb888, prelude::*};
+use embedded_graphics_core::pixelcolor::Rgb888;
+use embedded_graphics_core::prelude::*;
 
-impl<IFACE, RST> DrawTarget for Rm690b0Driver<IFACE, RST>
+impl<IFACE, RST, C> DrawTarget for Rm690b0Driver<IFACE, RST, C>
 where
     IFACE: ControllerInterface,
     RST: ResetInterface,
+    C: PixelColor + Into<Rgb888>,
 {
-    type Color = Rgb888;
+    type Color = C;
     // Drawing to the framebuffer in memory is infallible.
     // Errors happen during flush with SPI comms.
     type Error = core::convert::Infallible;
@@ -27,13 +29,12 @@ where
                 let index = ((y * self.config.width as u32 + x) * 3) as usize;
 
                 if index + 2 < self.framebuffer.len() {
-                    let r = (color.into_storage() >> 16) as u8; // 8-bit Red
-                    let g = (color.into_storage() >> 8) as u8; // 8-bit Green
-                    let b = color.into_storage() as u8; // 8-bit Blue
+                    // Convert from generic color into Rgb888
+                    let rgb: Rgb888 = color.into();
 
-                    self.framebuffer[index] = r as u8;
-                    self.framebuffer[index + 1] = g as u8;
-                    self.framebuffer[index + 2] = b as u8;
+                    self.framebuffer[index] = rgb.r();
+                    self.framebuffer[index + 1] = rgb.g();
+                    self.framebuffer[index + 2] = rgb.b();
                 }
             }
         }
@@ -41,12 +42,11 @@ where
     }
 }
 
-// =========== embedded-graphics OriginDimensions Implementation ===========
-
-impl<IFACE, RST> OriginDimensions for Rm690b0Driver<IFACE, RST>
+impl<IFACE, RST, C> OriginDimensions for Rm690b0Driver<IFACE, RST, C>
 where
     IFACE: ControllerInterface,
     RST: ResetInterface,
+    C: PixelColor,
 {
     fn size(&self) -> Size {
         Size::new((self.config.width) as u32, (self.config.height) as u32)

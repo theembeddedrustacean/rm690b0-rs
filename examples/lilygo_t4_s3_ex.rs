@@ -80,7 +80,7 @@ fn main() -> ! {
     let mut pwr_en = Output::new(peripherals.GPIO9, Level::High, OutputConfig::default());
 
     let reset = ResetDriver::new(output);
-    let ws_driver = Lgt4s3Driver::new(lcd_spi);
+    let lg_driver = Lgt4s3Driver::new(lcd_spi);
 
     // --- Display Setup ---
     const DISPLAY_SIZE: DisplaySize = DisplaySize::new(450, 600);
@@ -88,7 +88,7 @@ fn main() -> ! {
 
     println!("Initializing RM690B0 Display...");
     let mut display = Rm690b0Driver::new_heap::<_, FB_SIZE>(
-        ws_driver,
+        lg_driver,
         reset,
         ColorMode::Rgb888,
         DISPLAY_SIZE,

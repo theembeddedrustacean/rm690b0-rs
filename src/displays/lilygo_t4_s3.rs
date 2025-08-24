@@ -86,7 +86,7 @@ impl ControllerInterface for Lgt4s3Driver {
     }
 }
 
-/// I2C-controlled GPIO Reset Pin
+/// GPIO Reset Pin
 pub struct ResetDriver<OUT> {
     output: OUT,
 }

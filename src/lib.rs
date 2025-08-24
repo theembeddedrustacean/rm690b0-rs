@@ -48,6 +48,7 @@ extern crate alloc;
 mod graphics_core;
 
 use alloc::boxed::Box;
+use embedded_graphics::prelude::PixelColor;
 use embedded_graphics_core::draw_target::DrawTarget;
 use embedded_hal::delay::DelayNs;
 
@@ -230,27 +231,30 @@ impl core::ops::DerefMut for Framebuffer {
 }
 
 /// Main Driver for the RM690B0 display controller.
-pub struct Rm690b0Driver<IFACE, RST>
+pub struct Rm690b0Driver<IFACE, RST, C>
 where
     IFACE: ControllerInterface,
     RST: ResetInterface,
+    C: PixelColor,
 {
     interface: IFACE,
     reset: RST,
     framebuffer: Framebuffer,
     config: DisplaySize,
+    _color: core::marker::PhantomData<C>,
 }
 
-impl<IFACE, RST> Rm690b0Driver<IFACE, RST>
+impl<IFACE, RST, C> Rm690b0Driver<IFACE, RST, C>
 where
     IFACE: ControllerInterface,
     RST: ResetInterface,
+    C: PixelColor,
 {
     /// Creates a new driver instance with static array and initializes the display.
     pub fn new_static<DELAY, const N: usize>(
         interface: IFACE,
         reset: RST,
-        color: ColorMode,
+        colormode: ColorMode,
         config: DisplaySize,
         mut delay: DELAY,
         framebuffer: &'static mut [u8; N],
@@ -263,9 +267,10 @@ where
             reset,
             framebuffer: Framebuffer::Static(&mut framebuffer[..]),
             config,
+            _color: core::marker::PhantomData,
         };
         driver.hard_reset()?;
-        driver.initialize_display(&mut delay, color)?;
+        driver.initialize_display(&mut delay, colormode)?;
         Ok(driver)
     }
 
@@ -285,6 +290,7 @@ where
             reset,
             framebuffer: Framebuffer::Heap(Box::new([0u8; N])),
             config,
+            _color: core::marker::PhantomData,
         };
         driver.hard_reset()?;
         driver.initialize_display(&mut delay, color)?;
@@ -308,6 +314,8 @@ where
     {
         self.send_command(commands::SLPOUT)?;
         delay.delay_ms(120);
+
+        self.send_command_with_data(commands::MADCTR, &[0x00])?;
 
         // Manufacturer-Specific Initialization
         self.send_command_with_data(0xFE, &[0x20])?;
@@ -411,7 +419,24 @@ where
         x_end: u16,
         y_end: u16,
     ) -> Result<(), DriverError<IFACE::Error, RST::Error>> {
-        if x_end < x_start || y_end < y_start || x_end >= 480 || y_end >= self.config.height {
+        let width = x_end.saturating_sub(x_start).saturating_add(1);
+        let height = y_end.saturating_sub(y_start).saturating_add(1);
+
+        if x_start % 2 != 0 || width % 2 != 0 {
+            return Err(DriverError::InvalidConfiguration(
+                "x_start and width must both be even",
+            ));
+        }
+        if y_start % 2 != 0 || height % 2 != 0 {
+            return Err(DriverError::InvalidConfiguration(
+                "y_start and height must both be even",
+            ));
+        }
+        if x_end < x_start
+            || y_end < y_start
+            || x_end >= self.config.width
+            || y_end >= self.config.height
+        {
             return Err(DriverError::InvalidConfiguration(
                 "Invalid window dimensions",
             ));
