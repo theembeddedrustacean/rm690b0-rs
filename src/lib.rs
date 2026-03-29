@@ -91,6 +91,16 @@ pub trait ControllerInterface {
 
     /// Sends pixel data
     fn send_pixels(&mut self, pixels: &[u8]) -> Result<(), Self::Error>;
+
+    /// Starts a pixel write transaction for an already configured display window.
+    fn send_pixels_start(&mut self, pixels: &[u8]) -> Result<(), Self::Error> {
+        self.send_pixels(pixels)
+    }
+
+    /// Continues a pixel write transaction for an already configured display window.
+    fn send_pixels_continue(&mut self, pixels: &[u8]) -> Result<(), Self::Error> {
+        self.send_pixels(pixels)
+    }
 }
 
 /// Trait for controlling the hardware reset pin.
@@ -502,23 +512,26 @@ where
         let fb_width = self.config.width as usize * bytes_per_pixel;
         let width = (x_end - x_start + 1) as usize;
         let height = (y_end - y_start + 1) as usize;
-        let mut pixel_data = alloc::vec::Vec::with_capacity(width * height * bytes_per_pixel);
-
         for y in 0..height {
             let offset = (y_start as usize + y) * fb_width + (x_start as usize * bytes_per_pixel);
             let row_end = offset + (width * bytes_per_pixel);
-            if offset < self.framebuffer.len() && row_end <= self.framebuffer.len() {
-                pixel_data.extend_from_slice(&self.framebuffer[offset..row_end]);
-            } else {
+            if offset >= self.framebuffer.len() || row_end > self.framebuffer.len() {
                 return Err(DriverError::InvalidConfiguration(
                     "Framebuffer slice out of bounds",
                 ));
             }
-        }
 
-        self.interface
-            .send_pixels(&pixel_data)
-            .map_err(DriverError::InterfaceError)?;
+            let row = &self.framebuffer[offset..row_end];
+            if y == 0 {
+                self.interface
+                    .send_pixels_start(row)
+                    .map_err(DriverError::InterfaceError)?;
+            } else {
+                self.interface
+                    .send_pixels_continue(row)
+                    .map_err(DriverError::InterfaceError)?;
+            }
+        }
         Ok(())
     }
 }

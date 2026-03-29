@@ -58,12 +58,15 @@ impl ControllerInterface for Lgt4s3Driver {
     }
 
     fn send_pixels(&mut self, pixels: &[u8]) -> Result<(), Self::Error> {
+        self.send_pixels_start(pixels)?;
+        Ok(())
+    }
+
+    fn send_pixels_start(&mut self, pixels: &[u8]) -> Result<(), Self::Error> {
         let ramwr_addr_val = (CMD_RAMWR as u32) << 8;
         let ramwrc_addr_val = (CMD_RAMWRC as u32) << 8;
 
-        let mut chunks = pixels.chunks(DMA_CHUNK_SIZE).enumerate();
-
-        while let Some((index, chunk)) = chunks.next() {
+        for (index, chunk) in pixels.chunks(DMA_CHUNK_SIZE).enumerate() {
             if index == 0 {
                 self.qspi.half_duplex_write(
                     DataMode::Quad,
@@ -81,6 +84,21 @@ impl ControllerInterface for Lgt4s3Driver {
                     chunk,
                 )?;
             }
+        }
+        Ok(())
+    }
+
+    fn send_pixels_continue(&mut self, pixels: &[u8]) -> Result<(), Self::Error> {
+        let ramwrc_addr_val = (CMD_RAMWRC as u32) << 8;
+
+        for chunk in pixels.chunks(DMA_CHUNK_SIZE) {
+            self.qspi.half_duplex_write(
+                DataMode::Quad,
+                Command::_8Bit(QSPI_PIXEL_OPCODE as u16, DataMode::Single),
+                Address::_24Bit(ramwrc_addr_val, DataMode::Single),
+                0,
+                chunk,
+            )?;
         }
         Ok(())
     }
