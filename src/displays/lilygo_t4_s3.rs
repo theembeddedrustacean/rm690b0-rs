@@ -23,6 +23,7 @@ pub struct Lgt4s3Driver {
 }
 
 impl Lgt4s3Driver {
+    /// Creates a new LilyGo T4-S3 QSPI transport driver.
     pub fn new(qspi: SpiDmaBus<'static, Blocking>) -> Self {
         Lgt4s3Driver { qspi }
     }
@@ -110,6 +111,7 @@ pub struct ResetDriver<OUT> {
 }
 
 impl<OUT> ResetDriver<OUT> {
+    /// Creates a new reset driver from a digital output pin.
     pub fn new(output: OUT) -> Self {
         ResetDriver { output }
     }

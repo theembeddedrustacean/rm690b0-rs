@@ -62,6 +62,7 @@ pub struct DisplaySize {
 }
 
 impl DisplaySize {
+    /// Creates a new display size in pixels.
     pub const fn new(width: u16, height: u16) -> Self {
         DisplaySize { width, height }
     }
@@ -167,6 +168,7 @@ pub mod commands {
 }
 
 /// Color modes supported by the RM690B0 display controller.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColorMode {
     /// 16-bit RGB565 format
     Rgb565,
@@ -202,6 +204,7 @@ pub enum Framebuffer {
 }
 
 impl Framebuffer {
+    /// Returns a mutable view of the raw framebuffer bytes.
     pub fn as_mut_slice(&mut self) -> &mut [u8] {
         match self {
             Framebuffer::Static(ref mut arr) => arr,
@@ -209,6 +212,7 @@ impl Framebuffer {
         }
     }
 
+    /// Returns an immutable view of the raw framebuffer bytes.
     pub fn as_slice(&self) -> &[u8] {
         match self {
             Framebuffer::Static(ref arr) => arr,
@@ -216,6 +220,7 @@ impl Framebuffer {
         }
     }
 
+    /// Returns the framebuffer length in bytes.
     pub fn len(&self) -> usize {
         self.as_slice().len()
     }
@@ -251,6 +256,7 @@ where
     reset: RST,
     framebuffer: Framebuffer,
     config: DisplaySize,
+    color_mode: ColorMode,
     _color: core::marker::PhantomData<C>,
 }
 
@@ -272,11 +278,19 @@ where
     where
         DELAY: DelayNs,
     {
+        let expected_fb_size = framebuffer_size(config, colormode);
+        if N != expected_fb_size {
+            return Err(DriverError::InvalidConfiguration(
+                "Framebuffer size does not match display size and color mode",
+            ));
+        }
+
         let mut driver = Self {
             interface,
             reset,
             framebuffer: Framebuffer::Static(&mut framebuffer[..]),
             config,
+            color_mode: colormode,
             _color: core::marker::PhantomData,
         };
         driver.hard_reset()?;
@@ -295,11 +309,19 @@ where
     where
         DELAY: DelayNs,
     {
+        let expected_fb_size = framebuffer_size(config, color);
+        if N != expected_fb_size {
+            return Err(DriverError::InvalidConfiguration(
+                "Framebuffer size does not match display size and color mode",
+            ));
+        }
+
         let mut driver = Self {
             interface,
             reset,
             framebuffer: Framebuffer::Heap(Box::new([0u8; N])),
             config,
+            color_mode: color,
             _color: core::marker::PhantomData,
         };
         driver.hard_reset()?;
@@ -499,16 +521,19 @@ where
         Ok(())
     }
 
+    /// Flushes a rectangular region from the framebuffer to display RAM.
+    ///
+    /// The region bounds are inclusive and must satisfy the alignment
+    /// constraints enforced by [`Self::set_window`].
     pub fn partial_flush(
         &mut self,
         x_start: u16,
         x_end: u16,
         y_start: u16,
         y_end: u16,
-        color: ColorMode,
     ) -> Result<(), DriverError<IFACE::Error, RST::Error>> {
         self.set_window(x_start, y_start, x_end, y_end)?;
-        let bytes_per_pixel = color.bytes_per_pixel();
+        let bytes_per_pixel = self.color_mode.bytes_per_pixel();
         let fb_width = self.config.width as usize * bytes_per_pixel;
         let width = (x_end - x_start + 1) as usize;
         let height = (y_end - y_start + 1) as usize;
