@@ -1,0 +1,47 @@
+name: Compile
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    name: Check crate compilation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install Rust Xtensa toolchain (GitHub)
+        if: ${{ env.ACT != 'true' }}
+        uses: esp-rs/xtensa-toolchain@v1.6.0
+        with:
+          default: true
+          ldproxy: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Rust Xtensa toolchain (local act)
+        if: ${{ env.ACT == 'true' }}
+        uses: esp-rs/xtensa-toolchain@v1.6.0
+        with:
+          default: true
+          ldproxy: true
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Compile library (default features)
+        run: cargo check --lib
+
+      - name: Compile library (lilygo_t4_s3 feature)
+        run: cargo check --lib --features lilygo_t4_s3
